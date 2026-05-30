@@ -109,8 +109,7 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={{
         flex: 1,
-        backgroundColor: '#f8fafc',
-        paddingTop: Platform.OS === 'android' ? require('react-native').StatusBar.currentHeight : 0
+        backgroundColor: '#f8fafc'
       }}>
         <StatusBar style="dark" />
         <WebView
