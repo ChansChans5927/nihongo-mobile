@@ -24,21 +24,19 @@ export default function App() {
   // 안드로이드 뒤로가기 버튼 처리
   useEffect(() => {
     const onBackPress = () => {
-      if (canGoBack && webviewRef.current) {
-        webviewRef.current.goBack();
-        return true; // 웹뷰 안에서 뒤로가기
+      if (webviewRef.current) {
+        // 웹앱 쪽에 뒤로가기 버튼이 눌렸다는 이벤트를 전달합니다.
+        webviewRef.current.injectJavaScript(`
+          window.dispatchEvent(new CustomEvent('hardwareBackPress'));
+          true;
+        `);
+        return true; // 일단 네이티브의 기본 뒤로가기(종료) 동작을 막습니다.
       }
-      
-      // 홈 화면(더 이상 뒤로 갈 수 없을 때)에서 뒤로가기 누르면 종료 확인 알림창 띄우기
-      Alert.alert('앱 종료', '앱을 종료하시겠습니까?', [
-        { text: '취소', style: 'cancel' },
-        { text: '확인', style: 'destructive', onPress: () => BackHandler.exitApp() }
-      ]);
-      return true; // 기본 종료 방지 후 알림창 띄움
+      return false;
     };
     BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-  }, [canGoBack]);
+  }, []);
 
   // 앱 실행 시 알림 권한 요청
   useEffect(() => {
@@ -94,6 +92,12 @@ export default function App() {
             true;
           `);
         }
+      } else if (data.type === 'EXIT_APP') {
+        // 웹 브라우저가 홈 화면일 때 종료 요청을 보냅니다.
+        Alert.alert('앱 종료', '앱을 종료하시겠습니까?', [
+          { text: '취소', style: 'cancel' },
+          { text: '확인', style: 'destructive', onPress: () => BackHandler.exitApp() }
+        ]);
       }
     } catch (error) {
       console.error('[Native] 메시지 파싱 에러:', error);
