@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.chan5927.nihongomobile"
+      "package": "com.chan5927.nihongomobile",
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
