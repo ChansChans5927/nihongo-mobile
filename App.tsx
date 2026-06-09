@@ -6,6 +6,9 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // 알림이 도착했을 때 어떻게 처리할지 설정 (앱이 켜져있을 때도 알림 띄우기)
 Notifications.setNotificationHandler({
@@ -20,6 +23,7 @@ export default function App() {
   const webviewRef = useRef<WebView>(null);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+
   // 안드로이드 뒤로가기 버튼 처리
   useEffect(() => {
     const onBackPress = () => {
@@ -120,6 +124,9 @@ export default function App() {
           ref={webviewRef}
           source={{ uri: 'https://nihongo-gakushu.onrender.com' }}
           onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
+          onLoadEnd={() => {
+            SplashScreen.hideAsync().catch(() => {});
+          }}
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={injectedJS}
           javaScriptEnabled={true}
