@@ -23,6 +23,7 @@ export default function App() {
   const webviewRef = useRef<WebView>(null);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [exitModalVisible, setExitModalVisible] = useState(false);
 
   // 안드로이드 뒤로가기 버튼 처리
   useEffect(() => {
@@ -98,10 +99,7 @@ export default function App() {
         }
       } else if (data.type === 'EXIT_APP') {
         // 웹 브라우저가 홈 화면일 때 종료 요청을 보냅니다.
-        Alert.alert('앱 종료', '앱을 종료하시겠습니까?', [
-          { text: '취소', style: 'cancel' },
-          { text: '확인', style: 'destructive', onPress: () => BackHandler.exitApp() }
-        ]);
+        setExitModalVisible(true);
       }
     } catch (error) {
       console.error('[Native] 메시지 파싱 에러:', error);
@@ -151,6 +149,37 @@ export default function App() {
             </View>
           )}
         />
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={exitModalVisible}
+          onRequestClose={() => setExitModalVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.98)', borderRadius: 28, padding: 32, width: '100%', maxWidth: 340, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 12 }}>
+              <View style={{ width: 64, height: 64, backgroundColor: '#fff7ed', borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: '#ffedd5' }}>
+                <Text style={{ fontSize: 28, color: '#f97316', fontWeight: 'bold' }}>!</Text>
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#1e293b', marginBottom: 12, textAlign: 'center' }}>
+                학습을 마치고 앱을 종료하시겠습니까?
+              </Text>
+              <View style={{ flexDirection: 'row', width: '100%', gap: 12, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 16, backgroundColor: '#f1f5f9', borderRadius: 16, alignItems: 'center' }}
+                  onPress={() => setExitModalVisible(false)}
+                >
+                  <Text style={{ color: '#475569', fontWeight: '700', fontSize: 16 }}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 16, backgroundColor: '#f59e0b', borderRadius: 16, alignItems: 'center', shadowColor: '#f59e0b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }}
+                  onPress={() => BackHandler.exitApp()}
+                >
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>확인</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </SafeAreaProvider>
   );
