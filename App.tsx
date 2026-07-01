@@ -43,7 +43,7 @@ export default function App() {
     return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
   }, []);
 
-  // 앱 실행 시 알림 권한 요청
+  // 앱 실행 시 알림 권한 요청 및 푸시 클릭 리스너 등록
   useEffect(() => {
     async function requestPermissions() {
       try {
@@ -69,6 +69,32 @@ export default function App() {
       }
     }
     requestPermissions();
+
+    // 푸시 알림을 클릭했을 때 발생하는 이벤트 리스너
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      
+      // 서버에서 딥링크용으로 보낸 targetItem이 있는지 확인
+      if (data && data.targetItem) {
+        console.log("푸시 알림 클릭 감지 (딥링크):", data);
+        
+        // 웹뷰로 메시지를 전송 (프론트엔드의 window.addEventListener('message')가 받음)
+        if (webviewRef.current) {
+          const messageStr = JSON.stringify({
+            type: 'DEEP_LINK_STUDY',
+            payload: data
+          });
+          webviewRef.current.injectJavaScript(`
+            window.postMessage(${messageStr}, '*');
+            true;
+          `);
+        }
+      }
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(responseListener);
+    };
   }, []);
 
   // 웹에서 보낸 메시지(nativeBridge) 수신 처리
