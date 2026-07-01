@@ -43,9 +43,12 @@ export default function App() {
     return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
   }, []);
 
+  // 웹뷰 초기 URL
+  const [webViewUrl, setWebViewUrl] = useState('https://nihongo-gakushu.onrender.com');
+
   // 앱 실행 시 알림 권한 요청 및 푸시 클릭 리스너 등록
   useEffect(() => {
-    async function requestPermissions() {
+    async function setupNotifications() {
       try {
         if (Device.isDevice) {
           const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -62,23 +65,36 @@ export default function App() {
           const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
           const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
           setExpoPushToken(tokenData.data);
-          console.log('Expo Push Token 발급 완료:', tokenData.data);
+        }
+
+        // 콜드 스타트(앱이 완전히 꺼져있을 때)로 알림을 눌러서 켰을 경우 확인
+        const lastNotificationResponse = await Notifications.getLastNotificationResponseAsync();
+        if (lastNotificationResponse) {
+          const data = lastNotificationResponse.notification.request.content.data;
+          if (data && data.targetItem) {
+            const params = `?targetItem=${encodeURIComponent(data.targetItem)}&type=${data.type || 'vocab'}&level=${data.level || 'N5'}`;
+            setWebViewUrl(`https://nihongo-gakushu.onrender.com${params}`);
+          }
         }
       } catch (error) {
         console.log('알림 설정 중 에러 발생:', error);
       }
     }
-    requestPermissions();
+    setupNotifications();
 
-    // 푸시 알림을 클릭했을 때 발생하는 이벤트 리스너
+    // 앱이 백그라운드나 포그라운드에 켜져 있을 때 알림을 클릭했을 때 발생하는 이벤트 리스너
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      
-      // 서버에서 딥링크용으로 보낸 targetItem이 있는지 확인
       if (data && data.targetItem) {
         console.log("푸시 알림 클릭 감지 (딥링크):", data);
         
-        // 웹뷰로 메시지를 전송 (프론트엔드의 window.addEventListener('message')가 받음)
+        const params = `?targetItem=${encodeURIComponent(data.targetItem)}&type=${data.type || 'vocab'}&level=${data.level || 'N5'}`;
+        const newUrl = `https://nihongo-gakushu.onrender.com${params}`;
+        
+        // URL을 변경하여 웹뷰가 해당 딥링크로 로드/리로드 되도록 함
+        setWebViewUrl(newUrl);
+
+        // 혹시 모르니 postMessage도 쏴줌
         if (webviewRef.current) {
           const messageStr = JSON.stringify({
             type: 'DEEP_LINK_STUDY',
@@ -146,7 +162,7 @@ export default function App() {
         <StatusBar style="dark" />
         <WebView
           ref={webviewRef}
-          source={{ uri: 'https://nihongo-gakushu.onrender.com' }}
+          source={{ uri: webViewUrl }}
           onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
           onLoadEnd={() => {
             SplashScreen.hideAsync().catch(() => {});
