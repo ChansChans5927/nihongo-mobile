@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, Alert, Modal, View, Text, TouchableOpacity } from 'react-native';
+import { BackHandler, Modal, View, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
@@ -7,8 +7,14 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { InterstitialAd, TestIds, AdEventType } from 'react-native-google-mobile-ads';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-3940256099942544/1033173712'; // Replace with real ID before release
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  requestNonPersonalizedAdsOnly: true,
+});
 
 // 알림이 도착했을 때 어떻게 처리할지 설정 (앱이 켜져있을 때도 알림 띄우기)
 Notifications.setNotificationHandler({
@@ -24,6 +30,7 @@ export default function App() {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [exitModalVisible, setExitModalVisible] = useState(false);
+  const [adLoaded, setAdLoaded] = useState(false);
 
   // 안드로이드 뒤로가기 버튼 처리
   useEffect(() => {
@@ -113,6 +120,25 @@ export default function App() {
     };
   }, []);
 
+  // 광고 로딩 상태 관리 및 로드
+  useEffect(() => {
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setAdLoaded(true);
+    });
+
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      setAdLoaded(false);
+      interstitial.load(); // 닫히면 바로 다음 광고 미리 로드
+    });
+
+    interstitial.load();
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeClosed();
+    };
+  }, []);
+
   // 웹에서 보낸 메시지(nativeBridge) 수신 처리
   const onMessage = async (event: WebViewMessageEvent) => {
     try {
@@ -142,6 +168,14 @@ export default function App() {
       } else if (data.type === 'EXIT_APP') {
         // 웹 브라우저가 홈 화면일 때 종료 요청을 보냅니다.
         setExitModalVisible(true);
+      } else if (data.type === 'SHOW_INTERSTITIAL_AD') {
+        if (adLoaded) {
+          interstitial.show();
+        } else {
+          console.log('[Native] 전면 광고가 아직 로드되지 않았습니다.');
+          // 아직 로드되지 않았다면 강제로 로드 요청
+          interstitial.load();
+        }
       }
     } catch (error) {
       console.error('[Native] 메시지 파싱 에러:', error);
