@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Modal, View, Text, TouchableOpacity, Linking } from 'react-native';
+import { BackHandler, Modal, View, Text, TouchableOpacity, Linking, Platform } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
@@ -20,7 +20,8 @@ const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
 // 알림이 도착했을 때 어떻게 처리할지 설정 (앱이 켜져있을 때도 알림 띄우기)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -47,8 +48,8 @@ export default function App() {
       }
       return false;
     };
-    BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
   }, []);
 
   // 웹뷰 초기 URL
@@ -59,6 +60,13 @@ export default function App() {
     async function setupNotifications() {
       try {
         if (Device.isDevice) {
+          if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+              name: '기본 알림',
+              importance: Notifications.AndroidImportance.HIGH,
+            });
+          }
+
           const { status: existingStatus } = await Notifications.getPermissionsAsync();
           let finalStatus = existingStatus;
           if (existingStatus !== 'granted') {
@@ -79,8 +87,11 @@ export default function App() {
         const lastNotificationResponse = await Notifications.getLastNotificationResponseAsync();
         if (lastNotificationResponse) {
           const data = lastNotificationResponse.notification.request.content.data;
-          if (data && data.targetItem) {
-            const params = `?targetItem=${encodeURIComponent(data.targetItem)}&type=${data.type || 'vocab'}&level=${data.level || 'N5'}`;
+          const targetItem = typeof data?.targetItem === 'string' ? data.targetItem : null;
+          if (targetItem) {
+            const type = typeof data.type === 'string' ? data.type : 'vocab';
+            const level = typeof data.level === 'string' ? data.level : 'N5';
+            const params = `?targetItem=${encodeURIComponent(targetItem)}&type=${encodeURIComponent(type)}&level=${encodeURIComponent(level)}`;
             setWebViewUrl(`https://nihongo-gakushu.onrender.com${params}`);
           }
         }
@@ -93,10 +104,13 @@ export default function App() {
     // 앱이 백그라운드나 포그라운드에 켜져 있을 때 알림을 클릭했을 때 발생하는 이벤트 리스너
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
-      if (data && data.targetItem) {
+      const targetItem = typeof data?.targetItem === 'string' ? data.targetItem : null;
+      if (targetItem) {
         console.log("푸시 알림 클릭 감지 (딥링크):", data);
-        
-        const params = `?targetItem=${encodeURIComponent(data.targetItem)}&type=${data.type || 'vocab'}&level=${data.level || 'N5'}`;
+
+        const type = typeof data.type === 'string' ? data.type : 'vocab';
+        const level = typeof data.level === 'string' ? data.level : 'N5';
+        const params = `?targetItem=${encodeURIComponent(targetItem)}&type=${encodeURIComponent(type)}&level=${encodeURIComponent(level)}`;
         const newUrl = `https://nihongo-gakushu.onrender.com${params}`;
         
         // URL을 변경하여 웹뷰가 해당 딥링크로 로드/리로드 되도록 함
@@ -117,7 +131,7 @@ export default function App() {
     });
 
     return () => {
-      Notifications.removeNotificationSubscription(responseListener);
+      responseListener.remove();
     };
   }, []);
 
@@ -172,7 +186,10 @@ export default function App() {
             body: body,
             sound: true,
           },
-          trigger: { seconds: seconds },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds,
+          },
         });
 
         console.log(`[Native] 알림 예약 완료: ${seconds}초 뒤`);
