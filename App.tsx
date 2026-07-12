@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Modal, View, Text, TouchableOpacity } from 'react-native';
+import { BackHandler, Modal, View, Text, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as Notifications from 'expo-notifications';
@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { InterstitialAd, TestIds, AdEventType } from 'react-native-google-mobile-ads';
+import { classifyNavigationUrl, isTrustedAppUrl } from './urlPolicy';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -141,11 +142,29 @@ export default function App() {
 
   // 웹에서 보낸 메시지(nativeBridge) 수신 처리
   const onMessage = async (event: WebViewMessageEvent) => {
+    if (!isTrustedAppUrl(event.nativeEvent.url, __DEV__)) {
+      console.warn('[Native] 신뢰할 수 없는 페이지의 메시지를 차단했습니다:', event.nativeEvent.url);
+      return;
+    }
+
     try {
       const data = JSON.parse(event.nativeEvent.data);
 
+      if (!data || typeof data !== 'object' || typeof data.type !== 'string') {
+        throw new Error('올바르지 않은 메시지 형식입니다.');
+      }
+
       if (data.type === 'SCHEDULE_NOTIFICATION') {
-        const { title, body, seconds } = data.payload;
+        const { title, body, seconds } = data.payload || {};
+        const isValidPayload =
+          typeof title === 'string' && title.length > 0 && title.length <= 100 &&
+          typeof body === 'string' && body.length > 0 && body.length <= 500 &&
+          typeof seconds === 'number' && Number.isFinite(seconds) &&
+          seconds >= 1 && seconds <= 60 * 60 * 24 * 30;
+
+        if (!isValidPayload) {
+          throw new Error('올바르지 않은 알림 예약 정보입니다.');
+        }
 
         await Notifications.scheduleNotificationAsync({
           content: {
@@ -160,8 +179,9 @@ export default function App() {
       } else if (data.type === 'GET_EXPO_TOKEN') {
         // 웹에서 토큰을 요청했을 때 응답
         if (webviewRef.current) {
+          const serializedToken = JSON.stringify(expoPushToken || '');
           webviewRef.current.injectJavaScript(`
-            window.receiveExpoToken && window.receiveExpoToken('${expoPushToken || ""}');
+            window.receiveExpoToken && window.receiveExpoToken(${serializedToken});
             true;
           `);
         }
@@ -208,6 +228,22 @@ export default function App() {
           bounces={false}
           overScrollMode="never"
           style={{ flex: 1 }}
+          onShouldStartLoadWithRequest={(request) => {
+            const policy = classifyNavigationUrl(request.url, __DEV__);
+            if (policy === 'internal') return true;
+
+            if (policy === 'external' && request.isTopFrame !== false) {
+              Linking.canOpenURL(request.url)
+                .then((supported) => supported && Linking.openURL(request.url))
+                .catch((err) => {
+                  console.error('[Native] Failed to open external URL:', err);
+                });
+            } else if (policy === 'blocked') {
+              console.warn('[Native] 위험하거나 올바르지 않은 URL을 차단했습니다:', request.url);
+            }
+
+            return false;
+          }}
           renderError={() => (
             <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
               <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: '#334155' }}>네트워크 오류</Text>
