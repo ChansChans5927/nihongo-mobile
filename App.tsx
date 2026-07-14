@@ -7,15 +7,10 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { InterstitialAd, TestIds, AdEventType } from 'react-native-google-mobile-ads';
+import { interstitial, AdEventType } from './ads';
 import { classifyNavigationUrl, isTrustedAppUrl } from './urlPolicy';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
-
-const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-3940256099942544/1033173712'; // Replace with real ID before release
-const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
-  requestNonPersonalizedAdsOnly: true,
-});
 
 // 알림이 도착했을 때 어떻게 처리할지 설정 (앱이 켜져있을 때도 알림 띄우기)
 Notifications.setNotificationHandler({
@@ -89,8 +84,8 @@ export default function App() {
           const data = lastNotificationResponse.notification.request.content.data;
           const targetItem = typeof data?.targetItem === 'string' ? data.targetItem : null;
           if (targetItem) {
-            const type = typeof data.type === 'string' ? data.type : 'vocab';
-            const level = typeof data.level === 'string' ? data.level : 'N5';
+            const type = typeof data?.type === 'string' ? data.type : 'vocab';
+            const level = typeof data?.level === 'string' ? data.level : 'N5';
             const params = `?targetItem=${encodeURIComponent(targetItem)}&type=${encodeURIComponent(type)}&level=${encodeURIComponent(level)}`;
             setWebViewUrl(`https://nihongo-gakushu.onrender.com${params}`);
           }
@@ -108,8 +103,8 @@ export default function App() {
       if (targetItem) {
         console.log("푸시 알림 클릭 감지 (딥링크):", data);
 
-        const type = typeof data.type === 'string' ? data.type : 'vocab';
-        const level = typeof data.level === 'string' ? data.level : 'N5';
+        const type = typeof data?.type === 'string' ? data.type : 'vocab';
+        const level = typeof data?.level === 'string' ? data.level : 'N5';
         const params = `?targetItem=${encodeURIComponent(targetItem)}&type=${encodeURIComponent(type)}&level=${encodeURIComponent(level)}`;
         const newUrl = `https://nihongo-gakushu.onrender.com${params}`;
         
